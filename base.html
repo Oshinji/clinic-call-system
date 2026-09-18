@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>待機画面</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #f4f7fb; color: #1f3a5f; font-family: "Yu Gothic UI", "Meiryo", sans-serif; }
+    .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; }
+    .name { font-size: min(7vh, 7vw); font-weight: 700; letter-spacing: 0.08em; }
+    .msg { font-size: min(4.5vh, 4.5vw); }
+    .clock { font-size: min(9vh, 9vw); font-variant-numeric: tabular-nums; color: #005a91; }
+    .note { position: absolute; bottom: 4vh; font-size: min(2.5vh, 2.5vw); color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="name" id="clinicName">○○クリニック</div>
+    <div class="msg">整理番号でお呼びします。モニターと音声でご案内します。</div>
+    <div class="clock" id="clock">--:--</div>
+    <div class="note">この画面は base.html です。院名や文言は自由に書き換えてください。</div>
+  </div>
+  <script>
+    // 院名を変えたいときは、上の「○○クリニック」を書き換えるだけでOK
+    function tick() {
+      const d = new Date();
+      document.getElementById('clock').textContent =
+        String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+    tick(); setInterval(tick, 10000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>呼び出しモニター</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+    /* 基本映像: 呼び出しがないときの通常表示 */
+    #base {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%; border: none;
+    }
+
+    /* 呼び出しオーバーレイ（32〜43型・横型モニター向けレイアウト）
+       32型でもはみ出さないよう、文字サイズは vh(縦) と vw(横) の小さい方を採用し、
+       全体を安全マージン内に収める */
+    :root {
+      --room1-bright: #68d391;  /* 診察室1: 緑 */
+      --room1-deep:   #2f855a;
+      --room2-bright: #f6ad55;  /* 診察室2: オレンジ */
+      --room2-deep:   #c05621;
+    }
+    #callOverlay {
+      position: absolute; inset: 0;
+      background: #0a2540; z-index: 100;
+      display: none;
+      align-items: center; justify-content: center;
+      color: #fff; text-align: center;
+      /* TVは機種によって画面端が数%切れる(オーバースキャン)ため広めに安全マージンを取る */
+      padding: 6vh 6vw;
+      overflow: hidden;
+    }
+    #callOverlay.active { display: flex; }
+
+    .call-main {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      max-width: 100%; max-height: 100%;
+    }
+    .call-main .label {
+      font-size: min(6vh, 4vw); letter-spacing: .3em; color: #a8c5e0;
+      margin-bottom: .5vh;
+    }
+    /* 3桁でも横に収まるよう vw も考慮。1〜2桁時は .short でさらに大きく見せる */
+    .call-main .number {
+      font-size: min(30vh, 22vw); font-weight: bold; line-height: 1.05; color: #ffe066;
+      white-space: nowrap;
+    }
+    .call-main .number.short { font-size: min(34vh, 30vw); }
+
+    .room-line {
+      display: flex; align-items: center; gap: 1.5vw; margin-top: 1.5vh;
+      max-width: 100%;
+    }
+    /* 診察室名は視認性重視で大きく・太く。数字部分はさらに一回り大きくする */
+    .room-pill {
+      font-size: min(11vh, 6.4vw); font-weight: 900;
+      padding: .8vh 2.4vw; border-radius: 2.5vh;
+      color: #fff; background: #2b6cb0; white-space: nowrap;
+      line-height: 1.25;
+      box-shadow: 0 0 0 .5vh rgba(255,255,255,.22);
+    }
+    .room-pill .rn {
+      font-size: 1.45em; font-weight: 900;
+      margin: 0 .06em; letter-spacing: .01em;
+    }
+    #callOverlay.room1 .room-pill { background: var(--room1-deep); }
+    #callOverlay.room2 .room-pill { background: var(--room2-deep); }
+    .room-suffix { font-size: min(7vh, 4vw); font-weight: bold; white-space: nowrap; }
+
+    /* 縦長寄りの画面では診察室行を2段にして横はみ出しを防ぐ */
+    @media (max-aspect-ratio: 5/4) {
+      .room-line { flex-direction: column; gap: .8vh; }
+    }
+
+    #soundGate {
+      position: absolute; right: 12px; bottom: 12px; z-index: 200;
+      font-size: 16px; padding: 10px 18px; border: none; border-radius: 8px;
+      background: rgba(255, 255, 255, .85); color: #333; cursor: pointer;
+      display: none;
+    }
+    #soundGate.visible { display: block; }
+    /* GoogleTV等リモコンのD-padでフォーカスが分かるように強調表示する */
+    #soundGate:focus {
+      outline: 4px solid #4299e1; outline-offset: 2px;
+      background: #fff;
+    }
+
+    /* 接続エラー時のみ左下に小さく表示（通常運用では出ない） */
+    #connWarn {
+      position: absolute; left: 12px; bottom: 12px; z-index: 200;
+      font-size: 13px; padding: 6px 12px; border-radius: 6px;
+      background: rgba(197, 48, 48, .9); color: #fff;
+      display: none;
+    }
+    #connWarn.visible { display: block; }
+
+    /* テストモード中の目印 */
+    #testBadge {
+      position: absolute; left: 12px; top: 12px; z-index: 200;
+      font-size: 14px; font-weight: bold; padding: 6px 12px; border-radius: 6px;
+      background: rgba(197, 48, 48, .9); color: #fff;
+      display: none;
+    }
+    #testBadge.visible { display: block; }
+  </style>
+</head>
+<body>
+  <iframe id="base" src="base.html" tabindex="-1"></iframe>
+
+  <div id="callOverlay">
+    <div class="call-main">
+      <div class="label">整理番号</div>
+      <div class="number" id="callNumber">--</div>
+      <div class="room-line"><span class="room-pill" id="callRoom"></span><span class="room-suffix">へお入りください</span></div>
+    </div>
+  </div>
+
+  <button id="soundGate" tabindex="0" autofocus>🔇 タッチ／決定ボタンで音声を有効にする</button>
+  <div id="connWarn"></div>
+  <div id="testBadge">テストモード（call/test 監視中）</div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script>
+    const CALL_DISPLAY_SECONDS = 30;
+    const CALL_MAX_AGE_MS = 2 * 60 * 1000;
+
+    const params = new URLSearchParams(location.search);
+    // ?test=1 を付けると call/test を監視（本番運用前の実機確認用。call.html?test=1 とセットで使う）
+    const IS_TEST = params.get('test') === '1';
+    const CALL_PATH = IS_TEST ? 'call/test' : 'call/current';
+
+    // 呼び出し以外のときに流す基本映像。既定は base.html（待機画面）。
+    // 自院の案内ページなどに差し替えたい場合は ?base=ページ名.html で指定できる（同じフォルダに置くこと）
+    const baseParam = params.get('base');
+    if (baseParam && /^[\w.-]+\.html$/.test(baseParam)) document.getElementById('base').src = baseParam;
+    document.title = (IS_TEST ? '【テスト】' : '') + '呼び出しモニター';
+    if (IS_TEST) document.getElementById('testBadge').classList.add('visible');
+
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    const cdb = firebase.database();
+
+    const overlay = document.getElementById('callOverlay');
+    const callNumberEl = document.getElementById('callNumber');
+    const callRoomEl = document.getElementById('callRoom');
+    const soundGate = document.getElementById('soundGate');
+    const connWarn = document.getElementById('connWarn');
+
+    let hideTimer = null;
+    let audioCtx = null;
+    let soundEnabled = false;
+
+    // ---------- 診断表示 (?debug=1 で画面下部に状態を表示) ----------
+    const IS_DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+    let dbgEl = null, dbgLines = [];
+    function dbg(msg) {
+      if (!IS_DEBUG) return;
+      if (!dbgEl) {
+        dbgEl = document.createElement('div');
+        dbgEl.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:8px;z-index:300;'
+          + 'font-size:14px;font-family:monospace;background:rgba(0,0,0,.75);color:#9ae6b4;'
+          + 'padding:6px 12px;border-radius:6px;text-align:left;white-space:pre;max-width:90vw;overflow:hidden;';
+        document.body.appendChild(dbgEl);
+      }
+      dbgLines.push(new Date().toLocaleTimeString('ja-JP') + ' ' + msg);
+      if (dbgLines.length > 6) dbgLines.shift();
+      dbgEl.textContent = dbgLines.join('\n');
+    }
+
+    // ---------- 音声合成まわり ----------
+    // Chromeは音声リストの読み込みが非同期で、リスト確定前の発話が無音になる端末があるため
+    // 日本語音声を明示的に選んで指定する
+    let jaVoice = null;
+    function pickVoice() {
+      if (!window.speechSynthesis) return;
+      const vs = speechSynthesis.getVoices();
+      jaVoice = vs.find(function(v){ return v.lang && v.lang.toLowerCase().indexOf('ja') === 0; }) || null;
+      dbg('音声リスト: 全' + vs.length + '件 / 日本語: ' + (jaVoice ? jaVoice.name : 'なし'));
+    }
+    if (window.speechSynthesis) {
+      pickVoice();
+      speechSynthesis.onvoiceschanged = pickVoice;
+    } else {
+      dbg('⚠️ このブラウザは音声合成(speechSynthesis)非対応');
+    }
+
+    function speak(text) {
+      if (!window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ja-JP';
+      if (jaVoice) u.voice = jaVoice;
+      u.rate = 0.9;
+      u.volume = 1;
+      u.onstart = function() { dbg('発話開始: ' + text.slice(0, 12) + '…'); };
+      u.onerror = function(e) { dbg('⚠️ 発話エラー: ' + (e.error || '不明')); };
+      speechSynthesis.speak(u);
+    }
+
+    // ---------- 音声ファイル再生 ----------
+    // GoogleTV等のブラウザには日本語TTSエンジンがなく Web Speech API が無音になるため、
+    // edge-tts で事前生成した音声ファイル(audio/)を WebAudio で連結再生する方式を主とし、
+    // ファイルが無い場合のみ TTS にフォールバックする
+    const AUDIO_BASE = 'audio/';
+    const audioBuffers = {};
+    let activeSources = [];
+
+    function loadBuffer(key, file) {
+      if (audioBuffers[key]) return Promise.resolve(audioBuffers[key]);
+      return fetch(AUDIO_BASE + file).then(function(r) {
+        if (!r.ok) throw new Error(file + ': ' + r.status);
+        return r.arrayBuffer();
+      }).then(function(ab) {
+        return new Promise(function(res, rej) { audioCtx.decodeAudioData(ab, res, rej); });
+      }).then(function(buf) { audioBuffers[key] = buf; return buf; });
+    }
+
+    function stopAudio() {
+      activeSources.forEach(function(s) { try { s.stop(); } catch (e) {} });
+      activeSources = [];
+    }
+
+    function playSequence(bufs, startAt) {
+      let t = startAt;
+      bufs.forEach(function(b) {
+        const s = audioCtx.createBufferSource();
+        s.buffer = b;
+        s.connect(audioCtx.destination);
+        s.start(t);
+        activeSources.push(s);
+        t += b.duration + 0.1;
+      });
+      return t;
+    }
+
+    function enableSound() {
+      if (soundEnabled) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      soundEnabled = true;
+      soundGate.classList.remove('visible');
+      clearInterval(focusWatchdog);
+      dbg('有効化: AudioContext=' + audioCtx.state);
+      // 動作確認を兼ねてチャイム＋確認音声を実際に鳴らす
+      playChime();
+      loadBuffer('ready', 'ready.mp3').then(function(b) {
+        playSequence([b], audioCtx.currentTime + 0.9);
+        dbg('確認音声: ファイル再生');
+      }).catch(function() {
+        dbg('⚠️ ready.mp3取得失敗 → TTSへ');
+        speak('音声の準備ができました');
+      });
+      // 呼び出しで毎回使うパーツを先読みしておく
+      loadBuffer('prefix', 'prefix.mp3').catch(function(){});
+      loadBuffer('room1', 'room1.mp3').catch(function(){});
+      loadBuffer('room2', 'room2.mp3').catch(function(){});
+    }
+
+    soundGate.classList.add('visible');
+    soundGate.addEventListener('click', enableSound);
+    // GoogleTV等のリモコンは「決定(OK)」ボタン押下時にEnter/Spaceのkeydownとして
+    // 届く場合があり、ブラウザによってはボタンのネイティブclick変換が効かないことがあるため
+    // 保険としてkeydownでも同じ処理を発火させる
+    soundGate.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 32) {
+        e.preventDefault();
+        enableSound();
+      }
+    });
+
+    // リモコン操作はフォーカスが当たっている要素にしか反応しないため、
+    // ページ内で唯一操作が必要なこのボタンに確実にフォーカスを当てておく
+    // （autofocus属性だけではiframe読み込み等でフォーカスが移ることがあるため保険を重ねる）
+    function focusSoundGate() {
+      if (!soundEnabled && soundGate.classList.contains('visible')) soundGate.focus();
+    }
+    focusSoundGate();
+    setTimeout(focusSoundGate, 300);
+    window.addEventListener('focus', focusSoundGate);
+    // 音声有効化が済むまで、何らかの理由でフォーカスが外れても定期的に戻す
+    const focusWatchdog = setInterval(focusSoundGate, 2000);
+
+    function playChime() {
+      if (!audioCtx) return;
+      const notes = [[659.25, 0, .45], [523.25, .45, .7]];
+      notes.forEach(function(n) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = n[0];
+        const t0 = audioCtx.currentTime + n[1];
+        gain.gain.setValueAtTime(.5, t0);
+        gain.gain.exponentialRampToValueAtTime(.001, t0 + n[2]);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t0);
+        osc.stop(t0 + n[2]);
+      });
+    }
+
+    function speakCall(number, room) {
+      if (!soundEnabled) return;
+      const roomKey = (room === 2) ? 'room2' : 'room1';
+      Promise.all([
+        loadBuffer('prefix', 'prefix.mp3'),
+        loadBuffer('num' + number, 'num/' + number + '.mp3'),
+        loadBuffer(roomKey, roomKey + '.mp3'),
+      ]).then(function(bufs) {
+        stopAudio();
+        const end1 = playSequence(bufs, audioCtx.currentTime + 0.05);
+        playSequence(bufs, end1 + 0.7);   // 2回読み上げ
+        dbg('音声ファイル再生: ' + number + '番 / ' + roomKey);
+      }).catch(function(e) {
+        // 音声ファイルが無い番号(301以上)などはTTSへ(TTS非搭載端末では無音になる)
+        dbg('⚠️ 音声ファイル不可 → TTSへ: ' + e.message);
+        if (!window.speechSynthesis) return;
+        // 「お入りください」は音声合成が「おいりください」と誤読するため、ひらがなで指定する
+        const text = '整理番号、' + number + '番のかた、第' + room + '診察室へ、おはいりください。';
+        speechSynthesis.cancel();
+        speak(text);
+        speak(text);
+      });
+    }
+
+    function showCall(number, room) {
+      callNumberEl.textContent = number;
+      // 桁数が少ないときは数字をさらに大きく表示する
+      callNumberEl.classList.toggle('short', String(number).length <= 2);
+      // 診察室の「1」「2」を一回り大きくして見分けやすくする
+      callRoomEl.innerHTML = '第<span class="rn">' + room + '</span>診察室';
+      // room1/room2クラスは診察室名バッジの色分けに使用
+      overlay.classList.remove('room1', 'room2');
+      if (room === 1) overlay.classList.add('room1');
+      else if (room === 2) overlay.classList.add('room2');
+      overlay.classList.add('active');
+      playChime();
+      setTimeout(function() { speakCall(number, room); }, 900);
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideCall, CALL_DISPLAY_SECONDS * 1000);
+    }
+
+    function hideCall() {
+      overlay.classList.remove('active');
+      clearTimeout(hideTimer);
+      // 取消時は読み上げ途中でも止める
+      stopAudio();
+      if (window.speechSynthesis) speechSynthesis.cancel();
+    }
+
+    let lastTs = 0;
+    cdb.ref(CALL_PATH).on('value', function(snap) {
+      connWarn.classList.remove('visible');
+      const v = snap.val();
+      if (!v || !v.ts) return;
+      if (v.ts === lastTs) return;
+      const age = Date.now() - v.ts;
+      if (age > CALL_MAX_AGE_MS) return;
+      lastTs = v.ts;
+      if (v.action === 'call' && v.number) {
+        showCall(v.number, v.room || 1);
+      } else if (v.action === 'cancel') {
+        hideCall();
+      }
+    }, function(err) {
+      connWarn.textContent = '⚠️ 呼出システム接続エラー：' + err.message;
+      connWarn.classList.add('visible');
+    });
+  </script>
+</body>
+</html>
