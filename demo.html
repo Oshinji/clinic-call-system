@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>院内呼び出しシステム デモ</title>
+  <style>
+    :root { --navy: #1f3a5f; --blue: #005a91; --bg: #f4f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--navy); font-family: "Yu Gothic UI", "Meiryo", sans-serif; }
+    header { padding: 16px 20px 8px; }
+    h1 { margin: 0 0 6px; font-size: 20px; }
+    .lead { margin: 0; font-size: 14px; line-height: 1.6; }
+    .steps { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; }
+    .steps li { background: #fff; border: 1px solid #d9e2ec; border-radius: 6px; padding: 6px 10px; }
+    .steps b { color: var(--blue); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 20px 20px; height: calc(100vh - 120px); min-height: 520px; }
+    .pane { display: flex; flex-direction: column; background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; overflow: hidden; }
+    .pane h2 { margin: 0; padding: 8px 12px; font-size: 14px; background: var(--navy); color: #fff; }
+    .pane h2 span { font-weight: normal; opacity: .8; margin-left: 8px; font-size: 12px; }
+    iframe { flex: 1; border: 0; width: 100%; }
+    .foot { padding: 0 20px 16px; font-size: 12px; color: #6b7280; line-height: 1.6; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; height: auto; } iframe { height: 60vh; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>院内呼び出しシステム デモ</h1>
+    <p class="lead">Firebaseの設定なしで、仕組みだけ体験できます。左が「待合室のモニター」、右が「診察室PCの操作パネル」です。実際は別々の端末に映しますが、ここでは1画面に並べています。</p>
+    <ul class="steps">
+      <li><b>1.</b> 左のモニターで「音声を有効にする」を押す（実機では朝1回だけ）</li>
+      <li><b>2.</b> 右の操作パネルで整理番号を入れて「呼び出し」</li>
+      <li><b>3.</b> 左に番号が出て、音声で2回読み上げ → 30秒で戻る</li>
+    </ul>
+  </header>
+  <div class="grid">
+    <section class="pane">
+      <h2>待合室モニター <span>call-monitor.html</span></h2>
+      <iframe src="call-monitor.html?demo=1" allow="autoplay" title="待合室モニター"></iframe>
+    </section>
+    <section class="pane">
+      <h2>診察室PC 操作パネル <span>call.html?room=1</span></h2>
+      <iframe src="call.html?room=1&demo=1" title="操作パネル"></iframe>
+    </section>
+  </div>
+  <p class="foot">
+    デモモードではログインを省略し、データはこのブラウザの中だけでやり取りしています（Firebaseには何も送っていません）。
+    本番では、診察室PCとモニターが別の場所にあっても、Firebase経由で同じ動きになります。
+    第2診察室を試すには <a href="call.html?room=2&demo=1" target="_blank">操作パネル（第2診察室）</a> を別タブで開いてください。
+  </p>
+</body>
+</html>
