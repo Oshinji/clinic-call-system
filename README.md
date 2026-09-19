@@ -42,7 +42,7 @@ Claudeが自分で進められない作業は次の6つです。ここだけは�
 |---|---|---|
 | 1 | GitHubのアカウントを作り、このリポジトリを「Fork」する（右上のボタン） | 5分 |
 | 2 | Googleアカウントで https://console.firebase.google.com を開き、プロジェクトを1つ作る（名前は自由） | 5分 |
-| 3 | Firebaseの画面で「Realtime Database」を作成（場所は asia-southeast1）と「Authentication」でメール／パスワードを有効化。スタッフ用のメールとパスワードを1組決めて登録 | 10分 |
+| 3 | Firebaseの画面で「Realtime Database」を作成（場所は asia-southeast1、セキュリティルールは**ロックモード**を選ぶ）と「Authentication」でメール／パスワードを有効化。スタッフ用のメールとパスワードを1組決めて登録 | 10分 |
 | 4 | Firebaseの「ルール」画面に、Claudeが出したルールを貼って「公開」を押す | 2分 |
 | 5 | Firebaseの「プロジェクトの設定」からWebアプリの設定値（apiKey等）をコピーしてClaudeに渡す（Claudeが `firebase-config.js` に入れます） | 5分 |
 | 6 | GitHubのリポジトリ設定で「Pages」を有効にする（Claudeが場所を案内します） | 3分 |
@@ -52,7 +52,7 @@ Claudeが自分で進められない作業は次の6つです。ここだけは�
 ## 手で進めたい人向けの手順
 
 1. このリポジトリをForkする
-2. Firebaseでプロジェクトを作成 → Realtime Database（asia-southeast1）を有効化
+2. Firebaseでプロジェクトを作成 → Realtime Database（asia-southeast1）を有効化。「テストモード／ロックモード」は**ロックモード**を選ぶ（テストモードは30日で期限切れになり、忘れた頃に止まる。4でルールを貼れば動く）
 3. Authentication → メール／パスワードを有効化 → スタッフ用アカウントを1つ追加
 4. Realtime Databaseの「ルール」に以下を貼って公開
 
