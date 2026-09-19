@@ -89,7 +89,7 @@
   window.addEventListener('DOMContentLoaded', function () {
     var b = document.createElement('div');
     b.textContent = 'デモモード（Firebase未接続・同じブラウザ内だけで動作）';
-    b.style.cssText = 'position:fixed;right:8px;bottom:8px;background:#b45309;color:#fff;font:12px/1.4 sans-serif;padding:4px 8px;border-radius:4px;z-index:9999;opacity:.9';
+    b.style.cssText = 'position:fixed;right:8px;top:8px;background:#b45309;color:#fff;font:12px/1.4 sans-serif;padding:4px 8px;border-radius:4px;z-index:9999;opacity:.9';
     document.body.appendChild(b);
   });
 })();
